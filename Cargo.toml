@@ -1,5 +1,5 @@
 [package]
-name = "avrae-plus-rs"
+name = "avrae-plus"
 version = "0.1.0"
 edition = "2021"
 
