@@ -1,9 +1,9 @@
 use diesel::prelude::*;
+use futures::StreamExt;
 use poise::serenity_prelude as serenity;
 
-use crate::{Context, Error, models::*};
 use super::is_manager;
-
+use crate::{models::*, Context, Error};
 
 /// Manage sources of homebrew spells. (Avrae tomes, etc.)
 #[poise::command(
@@ -12,6 +12,7 @@ use super::is_manager;
 	guild_only,
 	subcommands("list_tomes", "add_tome", "remove_tome")
 )]
+#[allow(clippy::unused_async)]
 pub async fn tomes(_ctx: Context<'_>) -> Result<(), Error> {
 	Ok(())
 }
@@ -19,7 +20,7 @@ pub async fn tomes(_ctx: Context<'_>) -> Result<(), Error> {
 /// List tomes for this guild.
 #[poise::command(prefix_command, slash_command, guild_only, rename = "list")]
 async fn list_tomes(ctx: Context<'_>) -> Result<(), Error> {
-	use crate::schema::GuildTomes::dsl::*;
+	use crate::schema::GuildTomes::dsl::{guild, GuildTomes};
 
 	let mut conn = ctx.data().db.lock().await;
 	let serenity::GuildId(guild_id) = ctx.guild_id().expect("Guild Id");
@@ -29,7 +30,19 @@ async fn list_tomes(ctx: Context<'_>) -> Result<(), Error> {
 		.load::<GuildTome>(&mut *conn)
 		.expect("Error loading guild tomes.");
 
-	ctx.say(format!("{:?}", tomes)).await?;
+	let mut fu = Box::pin(futures::stream::iter(&tomes)
+		.map(|tome| &tome.source)
+		.then(|src| crate::data::sources::get_spells(src))
+		.map(Result::unwrap)
+		.map(|el| el.name));
+
+	let mut str = String::new();
+	
+	while let Some(s) = fu.next().await {
+		str = format!("{str}{s}\n");
+	}
+	
+	ctx.say(str).await?;
 
 	Ok(())
 }
@@ -68,7 +81,7 @@ async fn add_tome(
 			.values(&tome)
 			.execute(&mut *conn)?;
 
-		ctx.say(format!("Successfully added: {}", src)).await?;
+		ctx.say(format!("Successfully added: {src}")).await?;
 	} else {
 		ctx.say("This tome is already added for this guild.")
 			.await?;
@@ -102,9 +115,9 @@ async fn remove_tome(
 	.execute(&mut *conn)?;
 
 	if count > 0 {
-		ctx.say(format!("Successfully removed: {}", src)).await?;
+		ctx.say(format!("Successfully removed: {src}")).await?;
 	} else {
-		ctx.say(format!("{} is not added for this guild.", src))
+		ctx.say(format!("{src} is not added for this guild."))
 			.await?;
 	}
 

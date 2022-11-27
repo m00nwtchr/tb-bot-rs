@@ -5,25 +5,25 @@ use serde::Deserialize;
 
 use crate::data::{Source, SpellCollection};
 
-pub async fn get_json(url: Url) -> anyhow::Result<JsonTome> {
+pub async fn get_tome(url: Url) -> anyhow::Result<Tome> {
 	let str = url.to_string();
 	let resp = reqwest::get(url).await?;
 
-	let mut tome: JsonTome = serde_json::from_slice(&resp.bytes().await?)?;
+	let mut tome: Tome = serde_json::from_slice(&resp.bytes().await?)?;
 	tome.url = str;
 	Ok(tome)
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
-pub struct JsonTome {
+pub struct Tome {
 	url: String,
 
 	spell_lists: HashMap<String, Vec<String>>,
 }
 
-impl From<JsonTome> for SpellCollection {
-	fn from(value: JsonTome) -> Self {
+impl From<Tome> for SpellCollection {
+	fn from(value: Tome) -> Self {
 		let name = value
 			.url
 			.split('/')

@@ -78,7 +78,7 @@ pub struct Spell {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SpellCollection {
 	id: Source,
-	name: String,
+	pub name: String,
 	image: Option<String>,
 
 	pub spells: Vec<Spell>,

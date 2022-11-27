@@ -1,30 +1,41 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
+use lazy_static::lazy_static;
 use reqwest::get;
 use serde::{Deserialize, Serialize};
+use tokio::sync::{Mutex, OnceCell};
 
 use crate::data::{Source, SpellCollection, SpellSchool};
 
 //const API_ENDPOINT: &str = "https://5e.tools/data"; // Protected by Cloudflare, ugh
 const API_ENDPOINT: &str = "https://5etools-mirror-1.github.io/data";
 
-async fn get_index() -> anyhow::Result<HashMap<String, String>> {
-	let res = get(format!("{}/spells/index.json", API_ENDPOINT)).await?;
+type FiveEIndex = HashMap<String, String>;
+
+lazy_static! {
+	pub static ref INDEX: Arc<OnceCell<FiveEIndex>> = Arc::new(OnceCell::new());
+}
+
+async fn _get_index() -> anyhow::Result<FiveEIndex> {
+	let res = get(format!("{API_ENDPOINT}/spells/index.json")).await?;
 
 	let map = serde_json::from_slice(&res.bytes().await?).map_err(|err| anyhow!(err))?;
 	Ok(map)
 }
 
-// fn get_sources(ids: &[String]) -> Vec<Book> {
-// 	ids.iter().filter_map(|str| get_source(str).ok()).collect()
-// }
+pub async fn get_index<'a>() -> &'a FiveEIndex {
+	INDEX
+		.get_or_init(async move || _get_index().await.unwrap())
+		.await
+}
 
 pub async fn get_source(id: &str) -> anyhow::Result<Book> {
-	let index = get_index().await?;
+	log::info!("Grabbing: {id}");
+	let index = get_index().await;
 	let file = index.get(id).unwrap();
 
-	let resp = get(format!("{}/spells/{}", API_ENDPOINT, file)).await?;
+	let resp = get(format!("{API_ENDPOINT}/spells/{file}")).await?;
 	let mut obj: Book = serde_json::from_slice(&resp.bytes().await?)?;
 	obj.id = String::from(id);
 

@@ -8,20 +8,29 @@ use crate::data::{Source, Spell, SpellCollection, SpellSchool};
 
 const API_ENDPOINT: &str = "https://api.avrae.io";
 
+// lazy_static! {
+// 	static ref SRD: AvraeTome = futures::executor::block_on(get_srd()).unwrap();
+// }
+
 pub async fn get_tome(id: &str) -> anyhow::Result<AvraeTome> {
-	let resp = get(format!("{}/homebrew/spells/{}", API_ENDPOINT, id)).await?;
+	log::info!("Grabbing: {id}");
+	if id.eq("srd") {
+		return get_srd().await;
+	}
+
+	let resp = get(format!("{API_ENDPOINT}/homebrew/spells/{id}")).await?;
 
 	let api_response: AvraeApiResponse<AvraeTome> = serde_json::from_slice(&resp.bytes().await?)?;
 
 	let Some(data) = api_response.data else {
         return Err(anyhow!("{}", api_response.error.unwrap_or_else(|| "Expected error message from avrae api.".to_string())));  
     };
-
+	log::debug!("Success: {data:?}");
 	Ok(data)
 }
 
 pub async fn get_srd() -> anyhow::Result<AvraeTome> {
-	let resp = get(format!("{}/homebrew/spells/srd", API_ENDPOINT)).await?;
+	let resp = get(format!("{API_ENDPOINT}/homebrew/spells/srd")).await?;
 
 	let api_response: AvraeApiResponse<Vec<AvraeSpell>> =
 		serde_json::from_slice(&resp.bytes().await?)?;
@@ -33,7 +42,7 @@ pub async fn get_srd() -> anyhow::Result<AvraeTome> {
 	Ok(AvraeTome {
 		id: "srd".to_string(),
 		name: "SRD".to_string(),
-		image: "".to_string(),
+		image: String::new(),
 		spells,
 	})
 }
@@ -45,25 +54,25 @@ struct AvraeApiResponse<T> {
 	data: Option<T>,
 }
 
-#[derive(Debug, Deserialize)]
-struct SpellComponents {
-	verbal: bool,
-	somatic: bool,
-	material: String,
-}
+// #[derive(Debug, Clone, Deserialize)]
+// struct SpellComponents {
+// 	verbal: bool,
+// 	somatic: bool,
+// 	material: String,
+// }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct AvraeSpell {
 	name: String,
 	level: u8,
 	school: SpellSchool,
 	classes: String,
-	subclasses: String,
+	// subclasses: String,
 	#[serde(rename = "casttime")]
-	cast_time: String,
-	range: String,
-	components: SpellComponents,
-	duration: String,
+	// cast_time: String,
+	// range: String,
+	// components: SpellComponents,
+	// duration: String,
 	ritual: bool,
 	description: String,
 }
@@ -81,8 +90,9 @@ impl From<AvraeSpell> for Spell {
 	}
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
+#[allow(clippy::module_name_repetitions)]
 pub struct AvraeTome {
 	#[serde(rename = "_id")]
 	id: String,

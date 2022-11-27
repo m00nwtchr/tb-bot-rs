@@ -4,7 +4,8 @@ use std::{
 	sync::{
 		atomic::{AtomicUsize, Ordering},
 		Arc,
-	}, time::Duration,
+	},
+	time::Duration,
 };
 
 use crate::{
@@ -90,8 +91,7 @@ async fn spell_list(
 ) -> Result<(), Error> {
 	ctx.defer_or_broadcast().await?;
 	let guild_id = ctx.guild_id().unwrap();
-	
-	
+
 	let (min_level, max_level) = if let Some(level) = level {
 		if level.contains('-') {
 			let mut spl = level.split('-');
@@ -229,7 +229,11 @@ impl SpellMap {
 	}
 }
 
-pub async fn build_spell_map(guild_id: GuildId, conn: Arc<Mutex<MysqlConnection>>, rebuild: bool) -> SpellMap {
+pub async fn build_spell_map(
+	guild_id: GuildId,
+	conn: Arc<Mutex<MysqlConnection>>,
+	rebuild: bool,
+) -> SpellMap {
 	use super::schema::GuildTomes::dsl::*;
 
 	if !rebuild {
@@ -252,16 +256,48 @@ pub async fn build_spell_map(guild_id: GuildId, conn: Arc<Mutex<MysqlConnection>
 		source: "srd".to_string(),
 	});
 
+	tomes.extend(
+		crate::data::sources::get_5e_index()
+			.await
+			.keys()
+			.into_iter()
+			.filter(|k| !k.starts_with("UA"))
+			.map(|key| GuildTome {
+				id: 0,
+				guild: 0,
+				source: key.clone(),
+			}),
+	);
+
 	let mut sm = SpellMap::default();
 	let mut spells_futures: FuturesUnordered<_> = tomes.iter().map(get_spells).collect();
 
+	let mut tomes: Vec<SpellCollection> = Vec::new();
 	while let Some(coll) = spells_futures.next().await {
 		if let Ok(coll) = coll {
-			for spell in coll.spells {
-				sm.add_spell(spell)
-			}
+			tomes.push(coll);
 		}
 	}
+
+	let spell_lists: HashMap<String, Vec<String>> =
+		tomes.iter().flat_map(|e| e.spell_lists.clone()).collect();
+
+	tomes
+		.into_iter()
+		.flat_map(|e| e.spells)
+		.for_each(|mut spell| {
+			spell
+				.classes
+				.extend(spell_lists.iter().filter_map(|(k, v)| {
+					if v.contains(&spell.name) {
+						Some(k.clone())
+					} else {
+						None
+					}
+				}));
+
+			sm.add_spell(spell);
+		});
 
 	SPELL_MAP.lock().await.insert(guild_id, sm.clone());
 
@@ -277,18 +313,11 @@ pub async fn send_paginated_message(
 	pages: &Vec<String>,
 	mut embed: CreateEmbed,
 ) -> Result<(), Error> {
-	let page_index = Arc::new(AtomicUsize::new(0));
-	let pages = Arc::new(pages.clone());
-
-	embed
-		.description(pages.get(0).unwrap())
-		.footer(|f| f.text(format!("Page {} out of {}", 1, pages.len())));
-
-	fn mk_btns(
-		c: &mut CreateComponents,
+	fn mk_btns<'a>(
+		c: &'a mut CreateComponents,
 		len: usize,
-		page_index: Arc<AtomicUsize>,
-	) -> &mut CreateComponents {
+		page_index: &Arc<AtomicUsize>,
+	) -> &'a mut CreateComponents {
 		c.create_action_row(|r| {
 			let i = page_index.load(Ordering::Relaxed);
 			if i > 0 {
@@ -311,11 +340,18 @@ pub async fn send_paginated_message(
 		})
 	}
 
+	let page_index = Arc::new(AtomicUsize::new(0));
+	let pages = Arc::new(pages.clone());
+
+	embed
+		.description(pages.get(0).unwrap())
+		.footer(|f| f.text(format!("Page {} out of {}", 1, pages.len())));
+
 	let reply = ctx
 		.send(|m| {
 			m.embeds.push(embed.clone());
 			if pages.len() > 1 {
-				m.components(|c| mk_btns(c, pages.len(), page_index.clone()));
+				m.components(|c| mk_btns(c, pages.len(), &page_index));
 			}
 			m.ephemeral(true)
 		})
@@ -325,7 +361,7 @@ pub async fn send_paginated_message(
 		.message()
 		.await?
 		.await_component_interactions(ctx)
-		.timeout(Duration::from_secs(10*60))
+		.timeout(Duration::from_secs(10 * 60))
 		.author_id(ctx.author().id)
 		.build();
 
@@ -356,16 +392,12 @@ pub async fn send_paginated_message(
 			.create_interaction_response(ctx, |r| {
 				r.kind(serenity::InteractionResponseType::UpdateMessage)
 					.interaction_response_data(|d| {
-						d.set_embed(embed);
-
-						// if i > 0 || i < pages.len() - 1 {
 						let mut components = CreateComponents::default();
-						mk_btns(&mut components, pages.len(), page_index);
+						mk_btns(&mut components, pages.len(), &page_index);
 
-						d.set_components(components);
-						// }
-
-						d.ephemeral(true)
+						d.set_embed(embed)
+							.set_components(components)
+							.ephemeral(true)
 					})
 			})
 			.await?;
