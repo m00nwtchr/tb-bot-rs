@@ -30,17 +30,13 @@ async fn list_tomes(ctx: Context<'_>) -> Result<(), Error> {
 		.load::<GuildTome>(&mut *conn)
 		.expect("Error loading guild tomes.");
 
-	let mut fu = Box::pin(futures::stream::iter(&tomes)
-		.map(|tome| &tome.source)
-		.then(|src| crate::data::sources::get_spells(src))
-		.map(Result::unwrap)
-		.map(|el| el.name));
+
 
 	let mut str = String::new();
 	
-	while let Some(s) = fu.next().await {
-		str = format!("{str}{s}\n");
-	}
+	// while let Some(s) = fu.next().await {
+	// 	str = format!("{str}{s}\n");
+	// }
 	
 	ctx.say(str).await?;
 

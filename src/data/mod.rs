@@ -1,12 +1,11 @@
 pub mod sources;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize, poise::ChoiceParameter, PartialEq, Eq)]
-#[serde(into = "char")]
-#[serde(from = "char")]
+#[serde(from = "String")]
 pub enum SpellSchool {
 	#[default]
 	Abjuration,
@@ -20,6 +19,18 @@ pub enum SpellSchool {
 }
 
 impl SpellSchool {
+	pub fn all() -> [SpellSchool; 8] {
+		[
+			Self::Abjuration,
+			Self::Conjuration,
+			Self::Divination,
+			Self::Enchantment,
+			Self::Evocation,
+			Self::Illusion,
+			Self::Necromancy,
+			Self::Transmutation,
+		]
+	}
 	fn id(&self) -> char {
 		match *self {
 			SpellSchool::Abjuration => 'A',
@@ -40,18 +51,25 @@ impl From<SpellSchool> for char {
 	}
 }
 
-impl From<char> for SpellSchool {
-	fn from(value: char) -> Self {
-		match value {
-			'A' => Self::Abjuration,
-			'C' => Self::Conjuration,
-			'D' => Self::Divination,
-			'E' => Self::Enchantment,
-			'V' => Self::Evocation,
-			'I' => Self::Illusion,
-			'N' => Self::Necromancy,
-			'T' => Self::Transmutation,
-			_ => panic!(),
+impl From<String> for SpellSchool {
+	fn from(value: String) -> Self {
+		match value.as_str() {
+			"A" => Self::Abjuration,
+			"C" => Self::Conjuration,
+			"D" => Self::Divination,
+			"E" => Self::Enchantment,
+			"V" => Self::Evocation,
+			"I" => Self::Illusion,
+			"N" => Self::Necromancy,
+			"T" => Self::Transmutation,
+			_ => {
+				for school in SpellSchool::all() {
+					if school.name().to_lowercase().contains(&value.to_lowercase()) {
+						return school
+					}
+				}
+				Self::default()
+			},
 		}
 	}
 }

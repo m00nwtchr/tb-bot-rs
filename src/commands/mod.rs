@@ -273,9 +273,10 @@ pub async fn build_spell_map(
 	let mut spells_futures: FuturesUnordered<_> = tomes.iter().map(get_spells).collect();
 
 	let mut tomes: Vec<SpellCollection> = Vec::new();
-	while let Some(coll) = spells_futures.next().await {
-		if let Ok(coll) = coll {
-			tomes.push(coll);
+	while let Some(res) = spells_futures.next().await {
+		match res {
+			Ok(collection) => tomes.push(collection),
+			Err(err) => log::error!("Error getting spell source: {err}"),
 		}
 	}
 
@@ -285,6 +286,8 @@ pub async fn build_spell_map(
 	tomes
 		.into_iter()
 		.flat_map(|e| e.spells)
+		.sorted_by(|a, b| a.name.cmp(&b.name))
+		.dedup_by(|a, b| a.name.eq(&b.name))
 		.for_each(|mut spell| {
 			spell
 				.classes
