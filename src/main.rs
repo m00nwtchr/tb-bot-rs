@@ -32,10 +32,12 @@ async fn main() {
 	env_logger::init();
 
 	let db_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-	let connection = Arc::new(Mutex::new(
-		MysqlConnection::establish(&db_url)
-			.unwrap_or_else(|_| panic!("Error connecting to {db_url}")),
-	));
+	let connection = Arc::new(Mutex::new(loop {
+		match MysqlConnection::establish(&db_url) {
+			Ok(conn) => break conn,
+			Err(e) => log::error!("Error connecting to {db_url}: {e}"),
+		}
+	}));
 
 	let framework = poise::Framework::builder()
 		.options(poise::FrameworkOptions {
