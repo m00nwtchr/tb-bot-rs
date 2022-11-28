@@ -25,14 +25,14 @@ async fn list_tomes(ctx: Context<'_>) -> Result<(), Error> {
 	let mut conn = ctx.data().db.lock().await;
 	let serenity::GuildId(guild_id) = ctx.guild_id().expect("Guild Id");
 
-	let tomes = GuildTomes
+	let _tomes = GuildTomes
 		.filter(guild.eq(guild_id))
 		.load::<GuildTome>(&mut *conn)
 		.expect("Error loading guild tomes.");
 
 
 
-	let mut str = String::new();
+	let str = String::new();
 	
 	// while let Some(s) = fu.next().await {
 	// 	str = format!("{str}{s}\n");

@@ -1,13 +1,12 @@
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::anyhow;
 use lazy_static::lazy_static;
 use reqwest::get;
 use serde::{
-	de::{Expected, Unexpected},
-	Deserialize, Deserializer,
+	Deserialize,
 };
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::{OnceCell};
 
 use crate::data::{Source, Spell, SpellCollection, SpellSchool};
 

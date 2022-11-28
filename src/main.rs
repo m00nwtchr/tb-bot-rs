@@ -3,13 +3,14 @@
 #![allow(clippy::unreadable_literal, clippy::wildcard_imports)]
 
 use commands::build_spell_map;
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+
+
 use std::env;
+use std::fmt::Debug;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use data::{Spell, SpellCollection};
+
 use diesel::prelude::*;
 use dotenvy::dotenv;
 use poise::serenity_prelude as serenity;
@@ -25,6 +26,12 @@ pub struct Data {
 }
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
+
+impl Debug for Data {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("")
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -43,7 +50,7 @@ async fn main() {
 		.options(poise::FrameworkOptions {
 			commands: commands::commands(),
 			prefix_options: poise::PrefixFrameworkOptions {
-				prefix: Some(env::var("PREFIX").unwrap_or_else(|_| "//".to_string())),
+				prefix: Some(env::var("PREFIX").unwrap_or_else(|_| "!!".to_string())),
 				..Default::default()
 			},
 			..Default::default()

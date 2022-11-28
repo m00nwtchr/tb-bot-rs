@@ -1,9 +1,9 @@
-use std::{collections::HashMap, error::Error, fmt, sync::Arc};
+use std::{collections::HashMap, error::Error, sync::Arc};
 
 use anyhow::anyhow;
 use lazy_static::lazy_static;
 use reqwest::get;
-use serde::{de::Unexpected, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, OnceCell};
 
 use crate::data::{Source, SpellCollection, SpellSchool};
