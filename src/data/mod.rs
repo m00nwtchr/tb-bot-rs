@@ -2,9 +2,9 @@ pub mod sources;
 
 use std::{collections::HashMap};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 
-#[derive(Clone, Default, Debug, Serialize, Deserialize, poise::ChoiceParameter, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, Deserialize, poise::ChoiceParameter, PartialEq, Eq)]
 #[serde(from = "String")]
 pub enum SpellSchool {
 	#[default]
@@ -82,7 +82,7 @@ impl From<String> for SpellSchool {
 // 	}
 // }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct Spell {
 	pub name: String,
 	pub level: u8,
@@ -93,7 +93,7 @@ pub struct Spell {
 	pub ritual: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct SpellCollection {
 	id: Source,
 	pub name: String,
@@ -103,7 +103,7 @@ pub struct SpellCollection {
 	pub spell_lists: HashMap<String, Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub enum Source {
 	Avrae(String),
 	FiveE(String),

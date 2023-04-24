@@ -3,10 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::anyhow;
 use lazy_static::lazy_static;
 use reqwest::get;
-use serde::{
-	Deserialize,
-};
-use tokio::sync::{OnceCell};
+use serde::Deserialize;
+use tokio::sync::OnceCell;
 
 use crate::data::{Source, Spell, SpellCollection, SpellSchool};
 
@@ -14,7 +12,7 @@ const API_ENDPOINT: &str = "https://api.avrae.io";
 
 lazy_static! {
 	static ref SRD: Arc<OnceCell<AvraeTome>> = Arc::new(OnceCell::new());
-	// static ref SRC_CACHE: Arc<Mutex<HashMap<String, AvraeTome>>> = Arc::new(Mutex::new(HashMap::new()));		
+	// static ref SRC_CACHE: Arc<Mutex<HashMap<String, AvraeTome>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 pub async fn get_tome(id: &str) -> anyhow::Result<AvraeTome> {
@@ -22,9 +20,9 @@ pub async fn get_tome(id: &str) -> anyhow::Result<AvraeTome> {
 	// let mut cache = SRC_CACHE.lock().await;
 	if id.eq("srd") {
 		return Ok(get_srd().await.clone());
-	}/* else if let Some(src) = cache.get(id) {
-		return Ok(src.clone())
-	}*/
+	} /* else if let Some(src) = cache.get(id) {
+	  return Ok(src.clone())
+  }*/
 
 	let resp = get(format!("{API_ENDPOINT}/homebrew/spells/{id}")).await?;
 
@@ -35,7 +33,7 @@ pub async fn get_tome(id: &str) -> anyhow::Result<AvraeTome> {
         return Err(anyhow!("{}", api_response.error.unwrap_or_else(|| "Expected error message from avrae api.".to_string())));  
     };
 	log::debug!("Success: {} - {}", data.id, data.name);
-	
+
 	// cache.insert(String::from(id), data.clone());
 	Ok(data)
 }
@@ -100,7 +98,12 @@ impl From<AvraeSpell> for Spell {
 			name: value.name,
 			level: value.level,
 			school: value.school,
-			classes: value.classes.split(", ").map(Into::into).collect(),
+			classes: value
+				.classes
+				.split(',')
+				.map(str::trim)
+				.map(Into::into)
+				.collect(),
 			description: value.description,
 			ritual: value.ritual,
 		}

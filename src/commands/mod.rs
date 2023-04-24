@@ -1,5 +1,5 @@
 use convert_case::Casing;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use poise::serenity_prelude::{
 	self as serenity, CacheHttp, CreateComponents, CreateEmbed, ReactionType,
 };
@@ -34,21 +34,37 @@ async fn help(
 	Ok(())
 }
 
-async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> Vec<String> {
-	let spell_map = spells::SPELL_MAP.lock().await;
-	if let Some(spell_map) = ctx.guild_id().and_then(|id| spell_map.get(&id)) {
-		spell_map
-			.map
-			.keys()
-			.into_iter()
-			.filter(move |class| class.starts_with(partial))
-			.cloned()
-			.map(|class| class.to_case(convert_case::Case::Title))
-			.collect()
-	} else {
-		Vec::new()
-	}
+async fn autocomplete_class<'a>(
+	ctx: Context<'_>,
+	partial: &'a str,
+) -> impl Stream<Item = String> + 'a {
+	let spell_map = spells::SPELL_MAP.read().await;
+
+	let id = ctx.guild_id().unwrap_or_default();
+	let vec = spell_map
+		.get(&id)
+		.map_or(Vec::new(), |sm| sm.get_classes().clone());
+
+	futures::stream::iter(vec)
+		.filter(move |class| futures::future::ready(class.starts_with(partial)))
+		// .map(String::clone)
+		.map(|class| class.to_case(convert_case::Case::Title))
 }
+
+// async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> Vec<String> {
+// 	let spell_map = spells::SPELL_MAP.read().await;
+// 	if let Some(spell_map) = ctx.guild_id().and_then(|id| spell_map.get(&id)) {
+// 		spell_map
+// 			.get_classes()
+// 			.into_iter()
+// 			// .filter(move |class| partial.is_empty() || class.starts_with(partial))
+// 			.cloned()
+// 			.map(|class| class.to_case(convert_case::Case::Title))
+// 			.collect()
+// 	} else {
+// 		Vec::new()
+// 	}
+// }
 
 pub fn commands() -> Vec<poise::Command<crate::Data, crate::Error>> {
 	vec![

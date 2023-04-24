@@ -5,7 +5,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use poise::serenity_prelude::{self as serenity, CreateEmbed, GuildId};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::{
 	data::{sources, Spell, SpellCollection, SpellSchool},
@@ -14,8 +14,8 @@ use crate::{
 };
 
 lazy_static! {
-	pub static ref SPELL_MAP: Arc<Mutex<HashMap<GuildId, SpellMap>>> =
-		Arc::new(Mutex::new(HashMap::new()));
+	pub static ref SPELL_MAP: Arc<RwLock<HashMap<GuildId, SpellMap>>> =
+		Arc::new(RwLock::new(HashMap::new()));
 }
 
 /// Lists spells for specified class and level (prefix command)
@@ -192,20 +192,31 @@ async fn spell_list(
 
 #[derive(Debug, Clone, Default)]
 pub struct SpellMap {
-	pub spells: Vec<Spell>,
-	pub map: HashMap<String, Vec<usize>>,
+	spells: Vec<Spell>,
+	classes: Vec<String>,
+	map: HashMap<String, Vec<usize>>,
 }
 
 impl SpellMap {
 	pub fn add_spell(&mut self, spell: Spell) {
 		let i = self.spells.len();
 
+		if spell.classes.is_empty() {
+			log::warn!("Spell with empty class list: {spell:?}");
+		}
 		for class in &spell.classes {
-			if let Some(cl) = self.map.get_mut(&class.to_lowercase()) {
-				cl.push(i);
-			} else {
-				self.map.insert(class.to_lowercase(), vec![i]);
+			if class.is_empty() {
+				continue;
 			}
+
+			if !self.classes.contains(class) {
+				self.classes.push(class.clone());
+			}
+
+			self.map
+				.entry(class.to_lowercase())
+				.or_insert(Vec::new())
+				.push(i);
 		}
 		self.spells.push(spell);
 	}
@@ -217,8 +228,8 @@ impl SpellMap {
 		Some(vec)
 	}
 
-	pub fn get_classes(&self) -> Vec<&String> {
-		self.map.keys().collect()
+	pub fn get_classes(&self) -> &Vec<String> {
+		&self.classes
 	}
 }
 
@@ -230,7 +241,7 @@ pub async fn build_spell_map(
 	use crate::schema::GuildTomes::dsl::*;
 
 	if !rebuild {
-		if let Some(spell_map) = SPELL_MAP.lock().await.get(&guild_id) {
+		if let Some(spell_map) = SPELL_MAP.read().await.get(&guild_id) {
 			return spell_map.clone();
 		}
 	}
@@ -253,7 +264,6 @@ pub async fn build_spell_map(
 		crate::data::sources::get_5e_index()
 			.await
 			.keys()
-			.into_iter()
 			.filter(|k| !k.starts_with("UA"))
 			.map(|key| GuildTome {
 				id: 0,
@@ -292,10 +302,20 @@ pub async fn build_spell_map(
 					}
 				}));
 
+			for class in &mut spell.classes {
+				match class.as_str() {
+					"Artificier" => *class = String::from("Artificer"),
+					"Range" => *class = String::from("Ranger"),
+					"Drud" => *class = String::from("Druid"),
+					"Warloc" => *class = String::from("Warlock"),
+					_ => {}
+				};
+			}
+
 			sm.add_spell(spell);
 		});
 
-	SPELL_MAP.lock().await.insert(guild_id, sm.clone());
+	SPELL_MAP.write().await.insert(guild_id, sm.clone());
 
 	sm
 }
