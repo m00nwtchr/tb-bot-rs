@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use anyhow::anyhow;
 use diesel::prelude::*;
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
@@ -12,11 +13,6 @@ use crate::{
 	models::GuildTome,
 	Context, Error,
 };
-
-lazy_static! {
-	pub static ref SPELL_MAP: Arc<RwLock<HashMap<GuildId, SpellMap>>> =
-		Arc::new(RwLock::new(HashMap::new()));
-}
 
 /// Lists spells for specified class and level (prefix command)
 ///
@@ -163,7 +159,11 @@ async fn spell_list(
 	ctx.defer_ephemeral().await?;
 	let guild_id = ctx.guild_id().unwrap();
 
-	let spell_map = build_spell_map(guild_id, ctx.data().db.clone(), false).await;
+	let spell_map_map = ctx.data().spell_map.read().await;
+	let spell_map = spell_map_map
+		.get(&guild_id)
+		.expect("Spell map not build for this guild yet.");
+
 	let iter = spell_map
 		.get_spells(&class.to_lowercase())
 		.unwrap()
@@ -269,18 +269,8 @@ impl SpellMap {
 	}
 }
 
-pub async fn build_spell_map(
-	guild_id: GuildId,
-	conn: Arc<Mutex<MysqlConnection>>,
-	rebuild: bool,
-) -> SpellMap {
+pub async fn build_spell_map(guild_id: GuildId, conn: Arc<Mutex<MysqlConnection>>) -> SpellMap {
 	use crate::schema::GuildTomes::dsl::*;
-
-	if !rebuild {
-		if let Some(spell_map) = SPELL_MAP.read().await.get(&guild_id) {
-			return spell_map.clone();
-		}
-	}
 
 	let mut conn = conn.lock().await;
 	let serenity::GuildId(gid) = guild_id;
@@ -351,9 +341,31 @@ pub async fn build_spell_map(
 			sm.add_spell(spell);
 		});
 
-	SPELL_MAP.write().await.insert(guild_id, sm.clone());
-
 	sm
+}
+
+#[allow(clippy::too_many_arguments)]
+#[poise::command(slash_command, prefix_command, ephemeral, check = "super::is_manager")]
+pub async fn rebuild(ctx: Context<'_>) -> Result<(), Error> {
+	if let Some(guild_id) = ctx.guild_id() {
+		let _typing = ctx.defer_or_broadcast().await;
+		let msg = ctx.say("Rebuilding spell lists...").await?;
+
+		let sm = build_spell_map(guild_id, ctx.data().db.clone()).await;
+		msg.edit(ctx, |m| {
+			m.content(format!(
+				"Done. {} classes and {} spells found.",
+				sm.classes.len(),
+				sm.spells.len()
+			))
+		})
+		.await?;
+
+		ctx.data().spell_map.write().await.insert(guild_id, sm);
+	} else {
+		ctx.say("Error: Must be ran in a guild").await?;
+	}
+	Ok(())
 }
 
 async fn get_spells(tome: &GuildTome) -> anyhow::Result<SpellCollection> {

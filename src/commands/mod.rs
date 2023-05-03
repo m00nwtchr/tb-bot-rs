@@ -13,7 +13,7 @@ use std::{
 
 use crate::{data::SpellSchool, Context, Error};
 
-mod spells;
+pub mod spells;
 mod tomes;
 
 pub use spells::build_spell_map;
@@ -24,13 +24,13 @@ async fn help(
 	ctx: Context<'_>,
 	#[description = "Specific command to show help about"] command: Option<String>,
 ) -> Result<(), Error> {
-	let config = poise::builtins::HelpConfiguration {
-		// 		extra_text_at_bottom: "\
-		// Type !!help command for more info on a command.
-		// You can edit your message to the bot and the bot will edit its response.",
-		..Default::default()
-	};
-	poise::builtins::help(ctx, command.as_deref(), config).await?;
+	// let config = poise::builtins::HelpConfiguration {
+	// 		extra_text_at_bottom: "\
+	// Type !!help command for more info on a command.
+	// You can edit your message to the bot and the bot will edit its response.",
+	// 	..Default::default()
+	// };
+	poise::builtins::help(ctx, command.as_deref(), Default::default()).await?;
 	Ok(())
 }
 
@@ -38,7 +38,7 @@ async fn autocomplete_class<'a>(
 	ctx: Context<'_>,
 	partial: &'a str,
 ) -> impl Stream<Item = String> + 'a {
-	let spell_map = spells::SPELL_MAP.read().await;
+	let spell_map = ctx.data().spell_map.read().await;
 
 	let id = ctx.guild_id().unwrap_or_default();
 	let vec = spell_map
@@ -67,27 +67,13 @@ async fn autocomplete_school(_ctx: Context<'_>, _partial: &str) -> [SpellSchool;
 	SpellSchool::all()
 }
 
-// async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> Vec<String> {
-// 	let spell_map = spells::SPELL_MAP.read().await;
-// 	if let Some(spell_map) = ctx.guild_id().and_then(|id| spell_map.get(&id)) {
-// 		spell_map
-// 			.get_classes()
-// 			.into_iter()
-// 			// .filter(move |class| partial.is_empty() || class.starts_with(partial))
-// 			.cloned()
-// 			.map(|class| class.to_case(convert_case::Case::Title))
-// 			.collect()
-// 	} else {
-// 		Vec::new()
-// 	}
-// }
-
 pub fn commands() -> Vec<poise::Command<crate::Data, crate::Error>> {
 	vec![
 		help(),
 		tomes::tomes(),
 		spells::spell_list_slash(),
 		spells::spell_list_prefix(),
+		spells::rebuild(),
 	]
 }
 
