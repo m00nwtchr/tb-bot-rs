@@ -51,6 +51,16 @@ async fn autocomplete_class<'a>(
 		.map(|class| class.to_case(convert_case::Case::Title))
 }
 
+async fn autocomplete_level(
+	_ctx: Context<'_>,
+	_partial: &str,
+) -> impl Iterator<Item = poise::AutocompleteChoice<u8>> {
+	(1u8..9).map(|n| poise::AutocompleteChoice {
+		name: format!("{}", n),
+		value: n,
+	})
+}
+
 // async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> Vec<String> {
 // 	let spell_map = spells::SPELL_MAP.read().await;
 // 	if let Some(spell_map) = ctx.guild_id().and_then(|id| spell_map.get(&id)) {

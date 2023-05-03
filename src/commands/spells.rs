@@ -23,14 +23,31 @@ lazy_static! {
 #[poise::command(prefix_command, ephemeral, rename = "sl")]
 pub async fn spell_list_prefix(
 	ctx: Context<'_>,
-	#[autocomplete = "super::autocomplete_class"]
-	#[description = "Class"]
-	class: String,
+	#[description = "Class"] class: String,
 	#[description = "Spell level"] level: Option<String>,
 	#[rest]
 	#[description = "Additional arguments"]
 	args: Option<String>,
 ) -> Result<(), Error> {
+	let (min_level, max_level) = if let Some(level) = level {
+		if level.contains('-') {
+			let mut spl = level.split('-');
+
+			let (one, two): (Option<u8>, Option<u8>) = (
+				spl.next().and_then(|el| el.parse().ok()),
+				spl.next().and_then(|el| el.parse().ok()),
+			);
+
+			(one, two)
+		} else {
+			let p: Option<u8> = level.parse().ok();
+
+			(p, p)
+		}
+	} else {
+		(None, None)
+	};
+
 	if let Some(args) = args {
 		let mut args = args.split(' ');
 		// log::info!("Spell List (Prefix): {ctx:?}");
@@ -56,32 +73,44 @@ pub async fn spell_list_prefix(
 			})
 			.collect();
 
+		// let level = if level.is_some() {
+		// 	level
+		// } else {
+		// 	args.next().map(String::from)
+		// };
+
 		spell_list(
 			ctx,
 			class,
-			if level.is_some() {
-				level
-			} else {
-				args.next().map(String::from)
-			},
+			min_level,
+			max_level,
 			ritual,
 			spell_schools,
 			not_classes,
 		)
 		.await
 	} else {
-		spell_list(ctx, class, None, false, vec![], vec![]).await
+		spell_list(ctx, class, min_level, max_level, false, vec![], vec![]).await
 	}
 }
 
 /// Lists spells for specified class and level (slash command)
+#[allow(clippy::too_many_arguments)]
 #[poise::command(slash_command, ephemeral, rename = "spells")]
 pub async fn spell_list_slash(
 	ctx: Context<'_>,
 	#[autocomplete = "super::autocomplete_class"]
 	#[description = "Class"]
 	class: String,
-	#[description = "Spell level"] level: Option<String>,
+	#[autocomplete = "super::autocomplete_level"]
+	#[description = "Spell level"]
+	level: Option<u8>,
+	#[autocomplete = "super::autocomplete_level"]
+	#[description = "Minimum spell level"]
+	mut min_level: Option<u8>,
+	#[autocomplete = "super::autocomplete_level"]
+	#[description = "Maximum spell level"]
+	mut max_level: Option<u8>,
 	#[description = "Filter spell schools (--<spell school> in additional args)"]
 	spell_schools: Vec<SpellSchool>,
 	#[description = "Only display ritual spells"]
@@ -94,38 +123,39 @@ pub async fn spell_list_slash(
 	// #[description = "Additional arguments"]
 	// args: Option<String>,
 ) -> Result<(), Error> {
-	spell_list(ctx, class, level, ritual, spell_schools, not_classes).await
+	if min_level.is_some() && max_level.is_none() {
+		max_level = Some(9);
+	} else if max_level.is_some() && min_level.is_none() {
+		min_level = Some(0);
+	} else if level.is_some() {
+		min_level = Some(level.unwrap());
+		max_level = Some(level.unwrap());
+	}
+
+	spell_list(
+		ctx,
+		class,
+		min_level,
+		max_level,
+		ritual,
+		spell_schools,
+		not_classes,
+	)
+	.await
 }
 
 async fn spell_list(
 	ctx: Context<'_>,
 	class: String,
-	level: Option<String>,
+	// level: Option<String>,
+	min_level: Option<u8>,
+	max_level: Option<u8>,
 	ritual: bool,
 	spell_schools: Vec<SpellSchool>,
 	not_classes: Vec<String>,
 ) -> Result<(), Error> {
 	ctx.defer_or_broadcast().await?;
 	let guild_id = ctx.guild_id().unwrap();
-
-	let (min_level, max_level) = if let Some(level) = level {
-		if level.contains('-') {
-			let mut spl = level.split('-');
-
-			let (one, two): (Option<u8>, Option<u8>) = (
-				spl.next().and_then(|el| el.parse().ok()),
-				spl.next().and_then(|el| el.parse().ok()),
-			);
-
-			(one, two)
-		} else {
-			let p: Option<u8> = level.parse().ok();
-
-			(p, p)
-		}
-	} else {
-		(None, None)
-	};
 
 	let spell_map = build_spell_map(guild_id, ctx.data().db.clone(), false).await;
 	let iter = spell_map
