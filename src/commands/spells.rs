@@ -4,7 +4,7 @@ use diesel::prelude::*;
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use poise::serenity_prelude::{self as serenity, CreateEmbed, GuildId};
+use poise::serenity_prelude::{self as serenity, CreateEmbed, GuildId, Typing};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::{
@@ -111,13 +111,15 @@ pub async fn spell_list_slash(
 	#[autocomplete = "super::autocomplete_level"]
 	#[description = "Maximum spell level"]
 	mut max_level: Option<u8>,
-	#[description = "Filter spell schools (--<spell school> in additional args)"]
-	spell_schools: Vec<SpellSchool>,
+	#[description = "Filter spell schools"]
+	#[autocomplete = "super::autocomplete_school"]
+	// spell_schools: Vec<SpellSchool>,
+	spell_school: Option<SpellSchool>,
 	#[description = "Only display ritual spells"]
 	#[flag]
 	ritual: bool,
 	#[autocomplete = "super::autocomplete_class"]
-	#[description = "Exclude spells which belong to this class's spell list (--!<class> in additional args)"]
+	#[description = "Exclude spells which belong to this class's spell list"]
 	not_classes: Vec<String>,
 	// #[rest]
 	// #[description = "Additional arguments"]
@@ -138,7 +140,11 @@ pub async fn spell_list_slash(
 		min_level,
 		max_level,
 		ritual,
-		spell_schools,
+		if let Some(spell_school) = spell_school {
+			vec![spell_school]
+		} else {
+			Vec::new()
+		},
 		not_classes,
 	)
 	.await
@@ -154,7 +160,7 @@ async fn spell_list(
 	spell_schools: Vec<SpellSchool>,
 	not_classes: Vec<String>,
 ) -> Result<(), Error> {
-	ctx.defer_or_broadcast().await?;
+	ctx.defer_ephemeral().await?;
 	let guild_id = ctx.guild_id().unwrap();
 
 	let spell_map = build_spell_map(guild_id, ctx.data().db.clone(), false).await;
@@ -215,7 +221,7 @@ async fn spell_list(
 			.collect()
 	};
 
-	super::send_paginated_message(ctx, &list, CreateEmbed::default()).await?;
+	super::send_paginated_message(ctx, list, CreateEmbed::default()).await?;
 
 	Ok(())
 }

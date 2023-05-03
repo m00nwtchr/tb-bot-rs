@@ -11,7 +11,7 @@ use std::{
 	time::Duration,
 };
 
-use crate::{Context, Error};
+use crate::{data::SpellSchool, Context, Error};
 
 mod spells;
 mod tomes;
@@ -51,14 +51,20 @@ async fn autocomplete_class<'a>(
 		.map(|class| class.to_case(convert_case::Case::Title))
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_level(
 	_ctx: Context<'_>,
 	_partial: &str,
 ) -> impl Iterator<Item = poise::AutocompleteChoice<u8>> {
 	(1u8..9).map(|n| poise::AutocompleteChoice {
-		name: format!("{}", n),
+		name: format!("{n}"),
 		value: n,
 	})
+}
+
+#[allow(clippy::unused_async)]
+async fn autocomplete_school(_ctx: Context<'_>, _partial: &str) -> [SpellSchool; 8] {
+	SpellSchool::all()
 }
 
 // async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> Vec<String> {
@@ -106,7 +112,7 @@ pub async fn is_manager(ctx: Context<'_>) -> Result<bool, Error> {
 
 pub async fn send_paginated_message(
 	ctx: Context<'_>,
-	pages: &Vec<String>,
+	pages: Vec<String>,
 	mut embed: CreateEmbed,
 ) -> Result<(), Error> {
 	fn mk_btns<'a>(
@@ -137,7 +143,7 @@ pub async fn send_paginated_message(
 	}
 
 	let page_index = Arc::new(AtomicUsize::new(0));
-	let pages = Arc::new(pages.clone());
+	let pages = Arc::new(pages);
 
 	embed
 		.description(pages.get(0).unwrap())
