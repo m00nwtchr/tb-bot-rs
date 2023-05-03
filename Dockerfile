@@ -8,6 +8,6 @@ RUN cargo install --path .
 
 FROM debian:stable-slim
 RUN apt-get update && apt-get install -y ca-certificates openssl libmariadb3 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/cargo/bin/avrae-plus /usr/local/bin/avrae-plus
+COPY --from=builder /usr/local/cargo/bin/tb-bot /usr/local/bin/tb-bot
 
-CMD ["avrae-plus"]
+CMD ["tb-bot"]
