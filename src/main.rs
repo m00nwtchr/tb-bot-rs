@@ -1,19 +1,18 @@
 #![feature(let_chains, async_closure)]
 #![deny(clippy::pedantic)]
-#![allow(clippy::unreadable_literal, clippy::wildcard_imports)]
+#![allow(clippy::wildcard_imports)]
 
-use commands::build_spell_map;
-
-
-use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tokio::sync::Mutex;
-
+use std::{collections::HashMap, env};
 
 use diesel::prelude::*;
 use dotenvy::dotenv;
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity, CacheHttp, GuildId};
+use tokio::sync::{Mutex, RwLock};
+
+use commands::build_spell_map;
+use commands::spells::SpellMap;
 
 mod commands;
 mod data;
@@ -23,14 +22,15 @@ mod schema;
 
 pub struct Data {
 	db: Arc<Mutex<MysqlConnection>>,
+	spell_map: Arc<RwLock<HashMap<GuildId, SpellMap>>>,
 }
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 impl Debug for Data {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("")
-    }
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str("")
+	}
 }
 
 #[tokio::main]
@@ -62,16 +62,23 @@ async fn main() {
 		.setup(|ctx, _ready, framework| {
 			Box::pin(async move {
 				poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+				let mut spell_map = HashMap::new();
 
-				log::info!("Building spell info...");
+				log::info!("Building spell lists...");
 				let guilds = ctx.cache.guilds();
-				for guild in guilds {
-					log::info!("For: {guild}");
-					build_spell_map(guild, connection.clone(), false).await;
+				for guild_id in guilds {
+					log::info!("For: {:?} - {guild_id}", guild_id.name(&ctx.cache));
+
+					spell_map.insert(
+						guild_id,
+						build_spell_map(guild_id, connection.clone()).await,
+					);
 				}
 				log::info!("Done");
+
 				Ok(Data {
 					db: connection.clone(),
+					spell_map: Arc::new(RwLock::new(spell_map)),
 				})
 			})
 		});

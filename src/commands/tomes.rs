@@ -1,5 +1,4 @@
 use diesel::prelude::*;
-use futures::StreamExt;
 use poise::serenity_prelude as serenity;
 
 use super::is_manager;
