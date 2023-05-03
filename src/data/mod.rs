@@ -1,10 +1,9 @@
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
 pub mod sources;
 
-use std::{collections::HashMap};
-
-use serde::{Deserialize};
-
-#[derive(Clone, Default, Debug, Deserialize, poise::ChoiceParameter, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, Serialize, Deserialize, poise::ChoiceParameter, PartialEq, Eq)]
 #[serde(from = "String")]
 pub enum SpellSchool {
 	#[default]
@@ -65,11 +64,11 @@ impl From<String> for SpellSchool {
 			_ => {
 				for school in SpellSchool::all() {
 					if school.name().to_lowercase().contains(&value.to_lowercase()) {
-						return school
+						return school;
 					}
 				}
 				Self::default()
-			},
+			}
 		}
 	}
 }
